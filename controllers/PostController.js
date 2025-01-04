@@ -1,116 +1,10 @@
 import prisma from "../DB/db.config.js";
 
-// export const createPost = async (req, res) => {
-//   const { user_id, title, description } = req.body;
-
-//   const newPost = await prisma.post.create({
-//     data: {
-//       user_id: Number(user_id),
-//       title,
-//       description,
-//     },
-//   });
-//   return res.json({
-//     status: 200,
-//     data: newPost,
-//     msg: "Post Created Successfully",
-//   });
-// };
-
-// // update user
-// export const updatePost = async (req, res) => {
-//   const postId = req.params.id;
-//   const { title, description } = req.body;
-
-//   const update = await prisma.user.update({
-//     where: {
-//       id: Number(postId),
-//     },
-//     data: {
-//       title,
-//       description,
-//     },
-//   });
-//   return res.json({
-//     status: 200,
-//     data: update,
-//     msg: "User updated successfully",
-//   });
-// };
-
-// export const fetchPosts = async (req, res) => {
-//   try {
-//     const posts = await prisma.post.findMany({
-//       include: {
-//         comment: {
-//           include: {
-//             user: {
-//               select: {
-//                 name: true,
-//               },
-//             },
-//           },
-//         },
-//       },
-//       orderBy: {
-//         id: "desc",
-//       },
-//       where: {
-//         comment_count: {
-//           gt: 1,
-//         },
-//       },
-//     });
-
-//     return res.json({
-//       status: 200,
-//       data: posts,
-//       msg: "Successfully retrieved all posts",
-//     });
-//   } catch (error) {
-//     console.error("Error fetching posts:", error);
-//     return res.status(500).json({
-//       status: 500,
-//       msg: "Error fetching posts",
-//       error: error.message,
-//     });
-//   }
-// };
-
-// export const showPost = async (req, res) => {
-//   const postId = req.params.id;
-//   const post = await prisma.post.findFirst({
-//     where: {
-//       id: Number(postId),
-//     },
-//   });
-//   return res.json({ status: 200, data: post });
-// };
-
-// export const deletePost = async (req, res) => {
-//   const postId = req.params.id;
-//   await prisma.post.delete({
-//     where: {
-//       id: Number(postId),
-//     },
-//   });
-//   return res.json({ status: 200, msg: "Post successfully deleted" });
-// };
-
+// Create Post
 export const createPost = async (req, res) => {
   const { user_id, title, description } = req.body;
 
   try {
-    // Ensure the user exists
-    const userExists = await prisma.user.findUnique({
-      where: { id: Number(user_id) },
-    });
-
-    if (!userExists) {
-      return res.status(404).json({ status: 404, msg: "User not found" });
-    }
-
-    // Create the post
     const newPost = await prisma.post.create({
       data: {
         user_id: Number(user_id),
@@ -134,19 +28,12 @@ export const createPost = async (req, res) => {
   }
 };
 
+// Update Post
 export const updatePost = async (req, res) => {
   const postId = req.params.id;
   const { title, description } = req.body;
 
   try {
-    const postExists = await prisma.post.findUnique({
-      where: { id: Number(postId) },
-    });
-
-    if (!postExists) {
-      return res.status(404).json({ status: 404, msg: "Post not found" });
-    }
-
     const updatedPost = await prisma.post.update({
       where: { id: Number(postId) },
       data: {
@@ -162,6 +49,12 @@ export const updatePost = async (req, res) => {
     });
   } catch (error) {
     console.error("Error updating post:", error);
+    if (error.code === "P2025") {
+      return res.status(404).json({
+        status: 404,
+        msg: "Post not found",
+      });
+    }
     return res.status(500).json({
       status: 500,
       msg: "Error updating post",
@@ -170,6 +63,7 @@ export const updatePost = async (req, res) => {
   }
 };
 
+// Fetch Posts
 export const fetchPosts = async (req, res) => {
   try {
     const posts = await prisma.post.findMany({
@@ -188,9 +82,10 @@ export const fetchPosts = async (req, res) => {
         id: "desc",
       },
       where: {
-        title: {
-          startsWith: "NextJs", // Use 'comment_count' instead of 'comments_count'
-        },
+        OR: [
+          { title: { startsWith: "NextJs" } },
+          { title: { endsWith: "Nice" } },
+        ],
       },
     });
 
@@ -209,26 +104,38 @@ export const fetchPosts = async (req, res) => {
   }
 };
 
-// const posts = await prisma.post.findMany({
-//   include: {
-//     comments: true,
-//   },
-//   where: {
-//     comments: {
-//       some: {}, // Ensures at least one comment exists
-//     },
-//   },
-//   orderBy: {
-//     id: "desc",
-//   },
-// });
+// Search Post
+export const searchPost = async (req, res) => {
+  const query = req.query.q;
 
+  try {
+    const posts = await prisma.post.findMany({
+      where: {
+        description: {
+          search: query,
+        },
+      },
+    });
+    return res.json({ status: 200, data: posts });
+  } catch (error) {
+    console.error("Error searching posts:", error);
+    return res.status(500).json({
+      status: 500,
+      msg: "Error searching posts",
+      error: error.message,
+    });
+  }
+};
+
+// Show Post
 export const showPost = async (req, res) => {
   const postId = req.params.id;
 
   try {
+    // Validate postId
+
     const post = await prisma.post.findUnique({
-      where: { id: Number(postId) },
+      where: { id: Number(postId) }, // Convert postId to a number
       include: {
         comments: {
           include: {
@@ -244,10 +151,16 @@ export const showPost = async (req, res) => {
     });
 
     if (!post) {
-      return res.status(404).json({ status: 404, msg: "Post not found" });
+      return res.status(404).json({
+        status: 404,
+        msg: "Post not found",
+      });
     }
 
-    return res.json({ status: 200, data: post });
+    return res.json({
+      status: 200,
+      data: post,
+    });
   } catch (error) {
     console.error("Error fetching post:", error);
     return res.status(500).json({
@@ -258,18 +171,11 @@ export const showPost = async (req, res) => {
   }
 };
 
+// Delete Post
 export const deletePost = async (req, res) => {
   const postId = req.params.id;
 
   try {
-    const postExists = await prisma.post.findUnique({
-      where: { id: Number(postId) },
-    });
-
-    if (!postExists) {
-      return res.status(404).json({ status: 404, msg: "Post not found" });
-    }
-
     await prisma.post.delete({
       where: { id: Number(postId) },
     });
@@ -277,6 +183,12 @@ export const deletePost = async (req, res) => {
     return res.json({ status: 200, msg: "Post successfully deleted" });
   } catch (error) {
     console.error("Error deleting post:", error);
+    if (error.code === "P2025") {
+      return res.status(404).json({
+        status: 404,
+        msg: "Post not found",
+      });
+    }
     return res.status(500).json({
       status: 500,
       msg: "Error deleting post",
