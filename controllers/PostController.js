@@ -188,8 +188,8 @@ export const fetchPosts = async (req, res) => {
         id: "desc",
       },
       where: {
-        comment_count: {
-          gte: 1, // Use 'comment_count' instead of 'comments_count'
+        title: {
+          startsWith: "NextJs", // Use 'comment_count' instead of 'comments_count'
         },
       },
     });
